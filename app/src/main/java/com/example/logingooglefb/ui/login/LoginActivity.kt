@@ -13,6 +13,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.os.bundleOf
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.example.logingooglefb.R
@@ -21,13 +22,18 @@ import com.facebook.FacebookSdk
 import com.firebase.ui.auth.AuthUI
 import com.firebase.ui.auth.FirebaseAuthUIActivityResultContract
 import com.firebase.ui.auth.data.model.FirebaseAuthUIAuthenticationResult
+import com.google.android.gms.tasks.OnCompleteListener
+import com.google.firebase.analytics.FirebaseAnalytics
+import com.google.firebase.analytics.ktx.analytics
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.messaging.ktx.messaging
 
 class LoginActivity : AppCompatActivity() {
     //Firebase variable declaration
-    private lateinit var auth: FirebaseAuth;
+    private lateinit var auth: FirebaseAuth
+    private lateinit var analytics: FirebaseAnalytics
     private lateinit var loginViewModel: LoginViewModel
     private lateinit var binding: ActivityLoginBinding
 
@@ -43,9 +49,13 @@ class LoginActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         binding = ActivityLoginBinding.inflate(layoutInflater)
+        //Facebook client token setting
         FacebookSdk.setClientToken(getString(R.string.facebook_application_id))
+        //Facebook sdk initialisation
         FacebookSdk.sdkInitialize(this)
         setContentView(binding.root)
+        //Analytics initialisation
+        analytics = Firebase.analytics
         //Firebase initialisation
         auth = Firebase.auth
         val username = binding.username
@@ -68,6 +78,23 @@ class LoginActivity : AppCompatActivity() {
             .setAvailableProviders(providers)
             .build()
         signInLauncher.launch(signInIntent)
+
+        // [START log_reg_token]
+        Firebase.messaging.getToken().addOnCompleteListener(OnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w(TAG, "Fetching FCM registration token failed", task.exception)
+                return@OnCompleteListener
+            }
+
+            // Get new FCM registration token
+            val token = task.result
+
+            // Log and toast
+            //val msg = getString(R.string.msg_token_fmt, token)
+            Log.d("FirebaseTokenNotifications", token)
+            Toast.makeText(baseContext, "Recieved $token", Toast.LENGTH_SHORT).show()
+        })
+        // [END log_reg_token]
 
 
 
@@ -133,11 +160,21 @@ class LoginActivity : AppCompatActivity() {
             login.setOnClickListener {
                 loading.visibility = View.VISIBLE
                 loginUser(username.text.toString(), password.text.toString())
+                analytics.logEvent(FirebaseAnalytics.Event.SELECT_CONTENT, bundleOf(
+                    FirebaseAnalytics.Param.ITEM_ID to "loginActivity",
+                    FirebaseAnalytics.Param.ITEM_NAME to "userEvent",
+                    FirebaseAnalytics.Param.CONTENT_TYPE to "loginClick"
+                ))
             }
 
             register?.setOnClickListener {
                 loading.visibility = View.VISIBLE
                 registerUser(username.text.toString(), password.text.toString())
+                analytics.logEvent(FirebaseAnalytics.Event.SELECT_CONTENT, bundleOf(
+                    FirebaseAnalytics.Param.ITEM_ID to "registerActivity",
+                    FirebaseAnalytics.Param.ITEM_NAME to "userEvent",
+                    FirebaseAnalytics.Param.CONTENT_TYPE to "registerClick"
+                ))
             }
         }
     }
